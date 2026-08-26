@@ -78,6 +78,14 @@ python deploy/openloop.py --ckpt outputs/<run_name> --no-plot
 
 ### LIBERO simulation evaluation
 
+The evaluated model is initialized from the pretrained checkpoint and then
+fine-tuned on LIBERO. Results are success
+rates (%):
+
+| Spatial | Goal | Object | Long | Average |
+| ---: | ---: | ---: | ---: | ---: |
+| 98.2 | 97.2 | 98.0 | 94.6 | 97.0 |
+
 LIBERO uses its dedicated simulator-only EEF server and client. From the
 repository root, start the deployment server in one terminal:
 

@@ -63,6 +63,9 @@ class LiberoRobot(RobotConfig):
 
     robot_name: ClassVar[str] = "libero"
     quaternion_order: ClassVar[str] = "xyzw"
+    # Semantic Tau0 40D slots: left EEF xyz+rot6d and left gripper.
+    _state_active_indices: ClassVar[tuple[int, ...]] = (*range(9), 18)
+    _action_active_indices: ClassVar[tuple[int, ...]] = (*range(9), 18)
 
     repack: ClassVar[dict[str, object]] = {
         "prompt": "task",

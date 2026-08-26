@@ -7,17 +7,27 @@ from pathlib import Path
 
 from tau0_vla.adapters.libero import LiberoRobot
 from tau0_vla.data import EefPose, Gripper, Image, Prompt, PromptSource, register_config
+from tau0_vla.data.modalities import AxisAngle2Rot6D, PadToDim, PairToDifference
 from tau0_vla.data.modalities.image import ResizeWithPad
 
-_DATA = os.environ.get("TAU0_LIBERO_DATA", "<PATH_TO_LIBERO_LEROBOT_V3_DATASET_OR_MANIFEST>")
+_DATA = os.environ.get("TAU0_LIBERO_DATA", "/inspire/hdd/global_user/czxs25230233/vla/tau-0-vla/configs/libero/lerobot_libero.txt")
 _NORM_STATS = os.environ.get(
     "TAU0_LIBERO_NORM_STATS",
     str(Path(__file__).with_name("norm_stats.json")),
 )
 
 
-@register_config
-def libero_eef_ft() -> LiberoRobot:
+def _robot_prompt(robot_type: str, control_mode: str) -> str:
+    return (
+        "You are controlling a robot.\n"
+        f"Robot type: {robot_type}\n"
+        f"Control mode: {control_mode}\n"
+        "Whole-body control: disabled\n"
+        "Task: {instruction}"
+    )
+
+
+def _libero_eef_config(*, prompt_template: str) -> LiberoRobot:
     return LiberoRobot(
         repo_id=_DATA,
         images=[
@@ -25,23 +35,43 @@ def libero_eef_ft() -> LiberoRobot:
             Image("wrist_image", transforms=[ResizeWithPad(224, 224)]),
         ],
         prompt_source=PromptSource.from_label(source="parquet"),
-        prompt=Prompt(template="What action should the robot take to {instruction}?"),
+        prompt=Prompt(template=prompt_template),
         state=[
-            EefPose(normalize="mean_std"),
-            Gripper(normalize="mean_std"),
+            # Native xyz+axis-angle -> unified left-EEF xyz+rot6d at slots 0:9.
+            # Padding this component to 18 places the next component at slot 18.
+            EefPose(normalize="mean_std", transforms=[AxisAngle2Rot6D(), PadToDim(9, 18)]),
+            # Two opposing LIBERO finger joints describe one gripper opening.
+            Gripper(normalize="mean_std", transforms=[PairToDifference(scale=0.5)]),
         ],
         action=[
-            # Dataset values are already delta xyz + delta axis-angle.
-            EefPose(normalize="mean_std", abs2relative=False),
+            # Dataset values are already delta xyz + delta axis-angle. Convert
+            # only the rotation representation; do not relativize a second time.
+            EefPose(
+                normalize="mean_std",
+                abs2relative=False,
+                transforms=[AxisAngle2Rot6D(), PadToDim(9, 18)],
+            ),
             Gripper(normalize="mean_std"),
         ],
         # The released Tau0VLA checkpoint was trained with n_action_steps=30.
         # This architecture field cannot use the development LIBERO value (10)
         # when loading the released weights for supervised fine-tuning.
         action_horizon=10,
-        state_padding_dim=20,
-        action_padding_dim=20,
+        state_padding_dim=40,
+        action_padding_dim=40,
         norm_stats_path=_NORM_STATS,
         filter_by_segments=False,
         return_all_norm_forms=True,
     )
+
+
+@register_config
+def libero_eef_ft() -> LiberoRobot:
+    """Original question-style LIBERO prompt."""
+    return _libero_eef_config(prompt_template="What action should the robot take to {instruction}?")
+
+
+@register_config
+def libero_eef_robot_prompt_ft() -> LiberoRobot:
+    """Robot/control-aware prompt matching the unified training template."""
+    return _libero_eef_config(prompt_template=_robot_prompt("Panda", "end-effector"))

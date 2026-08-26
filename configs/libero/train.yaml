@@ -1,10 +1,10 @@
 experiment:
-  run_name: tau0_vla_libero_eef_ft
+  run_name: tau0_vla_libero_eef_40dim
   project_name: tau-0-vla-libero
-  notes: "LIBERO: 6D EEF pose + 2D gripper state, 6D delta EEF + 1D gripper action, horizon 10."
+  notes: "LIBERO robot-aware prompt; semantic 40D xyz+rot6d in 0:9 and left gripper in 18."
 
 model_args:
-  model_name_or_path: <PATH_TO_TAU0_CHECKPOINT>
+  model_name_or_path: /inspire/hdd/global_user/czxs25230233/vla/tau-0-vla/checkpoints/tau-0-vla-base
   vlm_model_type: qwen3.5
   vla_model_type: tau0_vla
   tune_mm_vision: true
@@ -16,9 +16,11 @@ model_args:
   vlm_causal: true
   tau_vla_prefix_flash_backend: true
   vla_inactive_input_zero: true
+  use_action_mask_loss: true
+  zero_state_emb: false
 
 data_args:
-  config_name: libero_eef_ft
+  config_name: libero_eef_robot_prompt_ft
   max_images_per_sample: 2
   vla_max_token_len: 2048
   max_pixels: 50176
