@@ -61,7 +61,7 @@ class Args:
     host: str = "0.0.0.0"
     port: int = 8000
     resize_size: int = 224
-    replan_steps: int = 5
+    replan_steps: int = 8
 
     #################################################################################################################
     # LIBERO environment-specific parameters

@@ -84,7 +84,7 @@ rates (%):
 
 | Spatial | Goal | Object | Long | Average |
 | ---: | ---: | ---: | ---: | ---: |
-| 98.2 | 97.2 | 98.0 | 94.6 | 97.0 |
+| 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
 
 LIBERO uses its dedicated simulator-only EEF server and client. From the
 repository root, start the deployment server in one terminal:
