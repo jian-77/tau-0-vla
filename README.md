@@ -58,11 +58,14 @@ bash scripts/train.sh configs/example_agibot_world_gong/train.yaml \
 For another dataset or robot, start from
 [`configs/_template/`](configs/_template/README.md) and
 [`src/tau0_vla/adapters/_template/`](src/tau0_vla/adapters/_template/README.md).
+The repository also includes a complete LIBERO simulation recipe under
+[`configs/libero/`](configs/libero/README.md).
 
 ## Serving and evaluation
 
-Public v1 serving supports joint-control checkpoints only. Native EEF data may
-be used for training, but EEF serving is not supported in this release.
+Public hardware serving supports joint-control checkpoints only. The LIBERO
+integration below uses a separate simulator-only EEF server and does not
+change the hardware-serving contract.
 
 Serve a post-trained joint-control checkpoint:
 
@@ -78,13 +81,21 @@ python deploy/openloop.py --ckpt outputs/<run_name> --no-plot
 
 ### LIBERO simulation evaluation
 
-The evaluated model is initialized from the pretrained checkpoint and then
-fine-tuned on LIBERO. Results are success
-rates (%):
+The model is initialized from the released pretrained checkpoint and
+post-trained on LIBERO. The reported checkpoint is evaluated with 50 rollouts
+per task; results are success rates (%):
 
 | Spatial | Goal | Object | Long | Average |
 | ---: | ---: | ---: | ---: | ---: |
 | 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
+
+Install the optional evaluation dependencies and the official
+[LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO) package first:
+
+```bash
+pip install -e ".[serve,libero]"
+pip install -e /path/to/LIBERO
+```
 
 LIBERO uses its dedicated simulator-only EEF server and client. From the
 repository root, start the deployment server in one terminal:
@@ -97,8 +108,7 @@ python -m deploy.libero_server \
 ```
 
 
-In another terminal, make the LIBERO package and `openpi_client` importable,
-then start the evaluation client:
+In another terminal, start the evaluation client:
 
 ```bash
 python -m deploy.libero.main \
@@ -106,14 +116,14 @@ python -m deploy.libero.main \
     --args.port 8000 \
     --args.task-suite-name libero_object \
     --args.num-trials-per-task 50 \
-    --args.video-out-path outputs/libero_eval/libero_spatial
+    --args.video-out-path outputs/libero_eval/libero_object
 ```
 
 `--task-suite-name` supports `libero_spatial`, `libero_object`,
-`libero_goal`, `libero_10`. Increase
-`--num-trials-per-task` for a full evaluation. The client saves rollout videos
+`libero_goal`, `libero_10`, and `libero_90`. The client saves rollout videos
 and an aggregate success-rate summary in `results.txt` under
-`--video-out-path`.
+`--video-out-path`. See [`configs/libero/`](configs/libero/README.md) for the
+training route, state/action layout, and checkpoint details.
 
 See [`deploy/`](deploy/README.md) for the payload and action-order contracts.
 

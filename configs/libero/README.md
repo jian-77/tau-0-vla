@@ -62,7 +62,7 @@ and launch training:
 ```bash
 export TAU0_LIBERO_DATA=/path/to/libero
 bash scripts/train.sh configs/libero/train.yaml \
-  --model_name_or_path /path/to/tau0-vla-checkpoint
+  --model_name_or_path sii-research/tau-0-vla
 ```
 
 The selected robot-aware prompt is:
