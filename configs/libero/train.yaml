@@ -4,7 +4,7 @@ experiment:
   notes: "LIBERO robot-aware prompt; semantic 40D xyz+rot6d in 0:9 and left gripper in 18."
 
 model_args:
-  model_name_or_path: /inspire/hdd/global_user/czxs25230233/vla/tau-0-vla/checkpoints/tau-0-vla-base
+  model_name_or_path: sii-research/tau-0-vla
   vlm_model_type: qwen3.5
   vla_model_type: tau0_vla
   tune_mm_vision: true

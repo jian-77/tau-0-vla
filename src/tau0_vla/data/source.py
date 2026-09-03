@@ -12,7 +12,7 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetad
 
 from tau0_vla.data.modalities.base import extract_field_descriptions_from_dataset_info
 
-EXPECTED_BACKEND_VERSION = "0.4.0"
+EXPECTED_BACKEND_VERSION = "0.4.1"
 BACKEND_PACKAGE = "lerobot"
 
 

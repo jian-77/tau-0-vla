@@ -10,7 +10,7 @@ from tau0_vla.data import EefPose, Gripper, Image, Prompt, PromptSource, registe
 from tau0_vla.data.modalities import AxisAngle2Rot6D, PadToDim, PairToDifference
 from tau0_vla.data.modalities.image import ResizeWithPad
 
-_DATA = os.environ.get("TAU0_LIBERO_DATA", "/inspire/hdd/global_user/czxs25230233/vla/tau-0-vla/configs/libero/lerobot_libero.txt")
+_DATA = os.environ.get("TAU0_LIBERO_DATA", "libero")
 _NORM_STATS = os.environ.get(
     "TAU0_LIBERO_NORM_STATS",
     str(Path(__file__).with_name("norm_stats.json")),
@@ -53,9 +53,8 @@ def _libero_eef_config(*, prompt_template: str) -> LiberoRobot:
             ),
             Gripper(normalize="mean_std"),
         ],
-        # The released Tau0VLA checkpoint was trained with n_action_steps=30.
-        # This architecture field cannot use the development LIBERO value (10)
-        # when loading the released weights for supervised fine-tuning.
+        # The released base checkpoint uses a horizon of 30. ModelBuilder
+        # adapts this to 10 while reusing the shared action-token weights.
         action_horizon=10,
         state_padding_dim=40,
         action_padding_dim=40,
