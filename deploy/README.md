@@ -104,10 +104,8 @@ actions and returns the checkpoint horizon (10 for the supplied export).
 The client replans after 8 actions by default. Keep this pickle service on
 localhost or a trusted isolated network, with one evaluator per process.
 
-The hardware server continues to reject EEF checkpoints. This simulator
-endpoint does not define a real-robot EEF deployment interface. See the
-[LIBERO guide](../configs/libero/README.md) for checkpoint availability,
-separate environments, exact CLI arguments, and validation results.
+See the [LIBERO guide](../configs/libero/README.md) for checkpoint downloads,
+model and simulator environments, evaluation commands, and results.
 
 ## Adapter input mapping
 

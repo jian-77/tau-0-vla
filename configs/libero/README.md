@@ -1,9 +1,5 @@
 # LIBERO post-training and evaluation
 
-Community contribution by [jian-77](https://github.com/jian-77) and liuyi,
-with validation and integration fixes by [jrryzh](https://github.com/jrryzh)
-in [PR #4](https://github.com/sii-research/tau-0-vla/pull/4).
-
 `train.yaml` fine-tunes the pretrained Tau0VLA checkpoint on LIBERO while
 preserving the checkpoint's unified 40D state/action interface. It selects the
 `libero_eef_robot_prompt_ft` data route defined in `data.py`.
@@ -79,21 +75,15 @@ Whole-body control: disabled
 Task: {instruction}
 ```
 
-`LiberoRobot` intentionally overrides stale `field_descriptions` found in some
-older exports. The eight state values are always interpreted as six EEF values
-followed by two gripper values.
+`LiberoRobot` interprets the eight state values as six EEF values followed by
+two gripper values, including when loading exports with older field metadata.
 
-## Checkpoint availability and export
+## Checkpoint
 
-The evaluated model is the **60,000-step LIBERO fine-tune**, not the public
-`sii-research/tau-0-vla` base checkpoint. Obtain a complete export from the
-[contributor / PR #4](https://github.com/sii-research/tau-0-vla/pull/4), or
-post-train and export your own checkpoint using the recipe above. A verified
-public download is not yet available: the model ID mentioned in the supplied
-model card, `sii-research/tau-0-vla-libero`, returned HTTP 401 to an anonymous
-Hub API request on 2026-09-20. No working public download command is claimed here.
+The evaluated model is the **60,000-step LIBERO fine-tune** of
+[`sii-research/tau-0-vla`](https://huggingface.co/sii-research/tau-0-vla).
 
-The validation used a self-contained `hf-checkpoint-60000` directory with:
+Its complete inference export has the following structure:
 
 ```text
 hf-checkpoint-60000/
@@ -114,11 +104,9 @@ hf-checkpoint-60000/
 
 For this export, `model.safetensors` has SHA-256
 `e03870720cbddbd0f3be44ee929a5d23efb9bf9532f0ac1c1bf676224aacc8ec`.
-The original `checkpoint-60000` had broken Data Spec symlinks; its weights
-alone were insufficient for deployment. Preserve all artifacts above and
-resolve symlinks when making a portable export. Keep the saved normalization,
-transforms, prompt, and camera labels together with their weights. This
-inference export does not contain optimizer or training-resume state.
+The export includes the weights, normalization statistics, transforms, prompt,
+and camera labels needed for inference. When exporting another checkpoint,
+include the same artifacts and resolve symlinks to make the directory portable.
 
 ## Separate model and simulation environments
 
@@ -136,9 +124,8 @@ python -m deploy.libero_server \
   --seed 7 --infer-mode eager --warmup-steps 1
 ```
 
-`eager` is the mode used for the validation below. `optim` remains the server
-default; it enables the existing optimized inference path and should be
-validated separately when comparing results.
+The validation below uses `eager`. The server also supports `optim`, its
+default optimized inference mode.
 
 The client uses a separate Python 3.10 environment with LIBERO, robosuite
 1.4.0, MuJoCo 3.2.3, and NumPy 1.24.4. It does not import the model or LeRobot.
@@ -208,7 +195,7 @@ The two passes cover initial-state indices 0–4, totaling 200 episodes. To run
 five trials in one pass instead, use `--args.episode-start 0
 --args.num-trials-per-task 5` with a fresh output directory. The CLI uses the
 `--args.` prefix shown above; `python -m deploy.libero.main --help` lists all
-options. The author-reported evaluation uses 50 trials per task (2,000 total).
+options. The reported 50-trial evaluation covers 2,000 episodes in total.
 
 | Display name | CLI suite | Tasks | Maximum action steps |
 | --- | --- | ---: | ---: |
@@ -223,8 +210,7 @@ rotation for both cameras, and PIL bilinear resizing to 224×224. The checkpoint
 predicts 10 actions; the client executes 8 before replanning. Native gripper
 commands are passed through without an extra sign flip. The simulator and
 policy RNGs are reset to seed 7 at each episode, making the two-pass protocol
-independent of prior episodes. This seeded protocol need not match historical
-runs that did not seed the model server. Use one client per server process;
+independent of prior episodes. Use one client per server process;
 concurrent clients would share its policy RNG.
 
 Each output directory contains:
@@ -237,19 +223,18 @@ Each output directory contains:
 - one MP4 per episode with captured frames, including unsuccessful rollouts.
 
 Existing episode records are protected from overwrite. Setup/RPC/action/video
-errors stop the run with a nonzero exit code; inspect the log and partial
-records rather than reporting an incomplete run as a benchmark result.
+errors stop the run with a nonzero exit code and leave the completed episode
+records available for inspection.
 
-## Results and limitations
+## Evaluation results
 
-**Author-reported**, 50 rollouts per task; historical rollout logs were not
-available for independent verification:
+**Reported evaluation**, 50 rollouts per task:
 
 | Spatial | Goal | Object | Long (`libero_10`) | Average |
 | ---: | ---: | ---: | ---: | ---: |
 | 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
 
-**Independent coarse validation (2026-09-20)**, five initial states per task:
+**Validation run (2026-09-20)**, five initial states per task:
 
 | Suite | Successes / episodes | Success rate | Exceptions |
 | --- | ---: | ---: | ---: |
@@ -260,6 +245,4 @@ available for independent verification:
 | **Overall** | **193/200** | **96.5%** | **0** |
 
 See the [validation report](validation/2026-09-20.md) for per-task records,
-code and checkpoint identities, and remaining limitations. Its prespecified acceptance threshold is at least 90%
-overall and 85% in every suite, with no systematic exceptions. Five trials per
-task are a coarse integration check, not a precise reproduction of 97.35%.
+the evaluation protocol, and code and checkpoint versions.

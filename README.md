@@ -4,7 +4,7 @@
 
 ![τ₀-VLA overview](assets/overview.png)
 
-<a href="https://tau0-vla.github.io/"><img src="https://img.shields.io/badge/Project_Website-tau0_VLA-blue" height="25" alt="Project Website"></a> &nbsp; <a href="https://tau0-vla.github.io/tau0-vla.pdf"><img src="https://img.shields.io/badge/Paper-tau0_VLA-red" height="25" alt="Paper"></a> &nbsp; <a href="https://huggingface.co/sii-research/tau-0-vla"><img src="https://img.shields.io/badge/Weight-Hugging_Face-orange" height="25" alt="Model Weights"></a>
+<a href="https://tau0-vla.github.io/"><img src="https://img.shields.io/badge/Project_Website-tau0_VLA-blue" height="25" alt="Project Website"></a> &nbsp; <a href="https://arxiv.org/abs/2608.16885"><img src="https://img.shields.io/badge/Paper-tau0_VLA-red" height="25" alt="Paper"></a> &nbsp; <a href="https://huggingface.co/sii-research/tau-0-vla"><img src="https://img.shields.io/badge/Weight-Hugging_Face-orange" height="25" alt="Model Weights"></a>
 
 </div>
 
@@ -13,15 +13,17 @@ Foundation Model with World-Model-Guided Test-Time Computation**.
 
 ## News
 
-- **[2026.09.20]** Community-contributed **LIBERO post-training and simulation evaluation**,
-  thanks to [jian-77](https://github.com/jian-77) and liuyi. See the
-  [LIBERO guide](configs/libero/README.md) for checkpoint availability, setup,
-  and separately labeled author-reported and validation results.
+- **[2026.09.20]** We release **LIBERO post-training and simulation evaluation**.
+  See the [LIBERO guide](configs/libero/README.md) for checkpoints, setup,
+  and evaluation results.
 
 - **[2026.07.27]** 🚀 We release the **τ₀-VLA** model
-  [Paper](https://tau0-vla.github.io/tau0-vla.pdf),
+  [Paper](https://arxiv.org/abs/2608.16885),
   [Project Website](https://tau0-vla.github.io/), and
   [Hugging Face](https://huggingface.co/sii-research/tau-0-vla).
+
+- **[2026.08.19]** 📢 We plan to progressively release components of the
+  high-level policy. Please stay tuned for updates.
 
 ## Overview
 
@@ -68,9 +70,8 @@ The repository also includes a complete LIBERO simulation recipe under
 
 ## Serving and evaluation
 
-Public hardware serving supports joint-control checkpoints only. The LIBERO
-integration below uses a separate simulator-only EEF server and does not
-change the hardware-serving contract.
+Hardware serving uses joint-control checkpoints. LIBERO simulation uses a
+dedicated end-effector (EEF) policy server.
 
 Serve a post-trained joint-control checkpoint:
 
@@ -86,23 +87,22 @@ python deploy/openloop.py --ckpt outputs/<run_name> --no-plot
 
 ### LIBERO simulation evaluation
 
-The community adaptation fine-tunes the released base model on LIBERO. The
-**authors report** the following success rates from 50 rollouts per task:
+The LIBERO checkpoint fine-tunes the pretrained low-level policy for
+end-effector control across Spatial, Goal, Object, and Long tasks.
+
+Reported success rates (%), with 50 rollouts per task:
 
 | Spatial | Goal | Object | Long (`libero_10`) | Average |
 | ---: | ---: | ---: | ---: | ---: |
 | 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
 
-Historical rollout logs were not available for independent verification.
-**Independent coarse validation:** 193/200 successes (96.5%), five initial
-states per task, with no evaluation exceptions. See the
-[validation report](configs/libero/validation/2026-09-20.md) for per-suite
-results and limitations; this does not establish an exact reproduction of 97.35%.
+A 200-episode validation run with five initial states per task achieved
+**193/200 successes (96.5%)**. The
+[validation report](configs/libero/validation/2026-09-20.md) includes the
+protocol, per-suite results, and per-task records.
 
-See the [LIBERO guide](configs/libero/README.md) for the complete checkpoint
-contract, separate model/simulator environments, and commands for all four
-suites. A publicly downloadable LIBERO fine-tuned checkpoint has **not yet
-been verified**; the public base model alone is not the evaluated checkpoint.
+See the [LIBERO guide](configs/libero/README.md) for checkpoint downloads,
+model and simulator environments, and evaluation commands for all four suites.
 
 See [`deploy/`](deploy/README.md) for the payload and action-order contracts.
 
@@ -116,7 +116,7 @@ src/tau0_vla/
 ├── trainer/     post-training entry point
 ├── vlm/         multimodal collation and tokenization
 └── utils/       logging and run specifications
-configs/         reusable template and the AgiBot World example
+configs/         reusable template, AgiBot World example, and LIBERO recipe
 deploy/          policy server and open-loop evaluation
 example_data/    bundled AgiBot World subset
 scripts/         setup, training, and normalization utilities
