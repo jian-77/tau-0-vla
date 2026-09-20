@@ -41,6 +41,13 @@ co-training.
 
 ![Hierarchical τ₀-VLA pipeline](assets/method.png)
 
+## Model checkpoints
+
+| Model | Description |
+| --- | --- |
+| [τ₀-VLA](https://huggingface.co/sii-research/tau-0-vla) | Pretrained low-level policy for robot post-training |
+| [τ₀-VLA LIBERO](https://huggingface.co/sii-research/tau-0-vla-libero) | LIBERO checkpoint for simulation evaluation |
+
 ## Installation
 
 The reference environment uses Python 3.11, CUDA 12.8, and PyTorch 2.7.1.

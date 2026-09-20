@@ -80,13 +80,19 @@ two gripper values, including when loading exports with older field metadata.
 
 ## Checkpoint
 
-The evaluated model is the **60,000-step LIBERO fine-tune** of
+The [τ₀-VLA LIBERO checkpoint](https://huggingface.co/sii-research/tau-0-vla-libero)
+is post-trained for **60,000 steps** from
 [`sii-research/tau-0-vla`](https://huggingface.co/sii-research/tau-0-vla).
+
+```bash
+hf download sii-research/tau-0-vla-libero \
+  --local-dir checkpoints/tau-0-vla-libero
+```
 
 Its complete inference export has the following structure:
 
 ```text
-hf-checkpoint-60000/
+tau-0-vla-libero/
 ├── model.safetensors
 ├── config.json
 ├── run_spec.json
@@ -119,7 +125,7 @@ NumPy 2.3.5, and an RTX 4090. Run commands from the repository root:
 # In the model environment, after scripts/setup.sh:
 pip install -e '.[serve]'
 python -m deploy.libero_server \
-  --model /path/to/hf-checkpoint-60000 \
+  --model checkpoints/tau-0-vla-libero \
   --host 127.0.0.1 --port 8000 \
   --seed 7 --infer-mode eager --warmup-steps 1
 ```

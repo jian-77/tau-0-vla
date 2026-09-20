@@ -71,7 +71,7 @@ positional and must match the SDK exactly.
 
 ## LIBERO simulator-only EEF service
 
-`python -m deploy.libero_server --model /path/to/hf-checkpoint-60000 --seed 7`
+`python -m deploy.libero_server --model /path/to/tau-0-vla-libero --seed 7`
 loads a LIBERO checkpoint through the same Data Spec, encoder, model loader,
 and action restoration as `Tau0VLAPolicy`. Its adapter requires an 8D raw
 state and the saved two-camera contract. The model-facing 40D representation
