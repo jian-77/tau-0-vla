@@ -27,11 +27,16 @@ _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 del _sys, _Path
 
 import argparse
+import hashlib
 import logging
 import pickle
+import random
+import subprocess
+from pathlib import Path
 from typing import Any
 
 import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException, Request
 
 from deploy._bootstrap import (
@@ -72,7 +77,7 @@ def _validate_action_chunk(actions: Any, *, horizon: int) -> np.ndarray:
     return array
 
 
-def build_app(policy: Tau0VLAPolicy) -> FastAPI:
+def build_app(policy: Tau0VLAPolicy, *, metadata: dict | None = None) -> FastAPI:
     _validate_libero_checkpoint(policy)
     deploy_io = resolve_deploy_io(policy.data_spec)
     state_fd = deploy_io.load_state_field_descriptions(policy.data_spec.artifacts_dir)
@@ -102,11 +107,17 @@ def build_app(policy: Tau0VLAPolicy) -> FastAPI:
         return validated.tolist()
 
     @app.post("/reset_episode")
-    async def reset_episode():
+    async def reset_episode(seed: int | None = None):
         # Tau0VLA currently has no recurrent episode state. Keep this endpoint
         # for compatibility with the LIBERO evaluator and future stateful
         # policies.
-        return {"status": "ok"}
+        if seed is not None:
+            if not 0 <= seed < 2**32:
+                raise HTTPException(status_code=400, detail="seed must be in [0, 2**32)")
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+        return {"status": "ok", "seed": seed}
 
     @app.get("/health")
     async def health():
@@ -115,6 +126,8 @@ def build_app(policy: Tau0VLAPolicy) -> FastAPI:
             "route": policy.data_spec.finch_config_name,
             "state_contract": "eef_xyz(3)+eef_axis_angle(3)+gripper(2)",
             "action_contract": "delta_xyz(3)+delta_axis_angle(3)+gripper(1)",
+            "action_horizon": policy.data_spec.action_chunk_size,
+            "metadata": metadata or {},
         }
 
     return app
@@ -130,9 +143,13 @@ def main() -> None:
     parser.add_argument("--infer-mode", default="optim", choices=["optim", "eager"])
     parser.add_argument("--max-prefix-len", type=int, default=0)
     parser.add_argument("--warmup-steps", type=int, default=3)
+    parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     ensure_configs_registered()
     ensure_policy_manifest(args.model, verbose=False)
     discover_checkpoint_config_modules(args.model)
@@ -150,7 +167,25 @@ def main() -> None:
     # intentional; expose this only inside a trusted, isolated network.
     import uvicorn
 
-    uvicorn.run(build_app(policy), host=args.host, port=args.port)
+    weight_hashes = {}
+    for path in sorted(Path(args.model).glob("*.safetensors")):
+        with path.open("rb") as weight_file:
+            weight_hashes[path.name] = hashlib.file_digest(weight_file, "sha256").hexdigest()
+    metadata = {
+        "checkpoint": Path(args.model).name,
+        "weight_sha256": weight_hashes,
+        "seed": args.seed,
+        "infer_mode": args.infer_mode,
+        "server_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    }
+    try:
+        metadata["code_revision"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[1], text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        metadata["code_revision"] = None
+    logger.info("Checkpoint provenance: %s", metadata)
+    uvicorn.run(build_app(policy, metadata=metadata), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

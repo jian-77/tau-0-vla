@@ -57,6 +57,61 @@ class LiberoTransformsTest(unittest.TestCase):
 
 
 class LiberoPayloadTest(unittest.TestCase):
+    def test_training_and_serving_match_with_stale_metadata(self):
+        from configs.libero.data import libero_eef_robot_prompt_ft
+
+        config = libero_eef_robot_prompt_ft()
+        # Older datasets mislabeled the EEF state as arm joints.
+        stale = {
+            "state": {
+                "arm_joint": {"dimensions": 7, "indices": list(range(7))},
+                "gripper": {"dimensions": 1, "indices": [7]},
+            }
+        }
+        fields = config.resolve_output_spec(field_descriptions=stale).field_descriptions
+        state = np.array([0.1, -0.2, 0.3, 0.4, -0.2, 0.15, 0.04, -0.03], dtype=np.float32)
+        action = np.random.default_rng(7).uniform(-0.4, 0.4, (10, 7)).astype(np.float32)
+        action[:, 6] = np.where(action[:, 6] > 0, 1, -1)
+        training = config._build_component_assembler(field_descriptions=fields)(
+            {"_state_raw": state, "_action_raw": action, "_field_descriptions": fields}
+        )
+        with tempfile.TemporaryDirectory() as run_dir:
+            save_data_spec("libero_eef_robot_prompt_ft", run_dir, vlm_model_type="qwen3.5")
+            spec = load_data_spec(run_dir, route="libero_eef_robot_prompt_ft")
+            serving = encode_payload(
+                {
+                    "state": state,
+                    "prompt": "pick up the object",
+                    "images": {k: np.zeros((32, 32, 3), np.uint8) for k in spec.cam_keys},
+                },
+                spec,
+            )
+            for key in ("state", "state_mask", "action_mask"):
+                np.testing.assert_allclose(training[key], serving[key], atol=1e-6)
+            inactive = np.flatnonzero(training["action_mask"] == 0)
+            np.testing.assert_array_equal(training["state"][inactive], 0)
+            np.testing.assert_array_equal(training["action"][:, inactive], 0)
+            restored = restore_action(training["action"], spec, state=serving["state"])
+            np.testing.assert_allclose(restored, action, atol=1e-5)
+
+    def test_public_hardware_contract_and_contiguous_masks(self):
+        from deploy.server import _require_public_v1_joint_only
+
+        for unified in (False, True):
+            spec = types.SimpleNamespace(
+                unified_registry_key="g1" if unified else None,
+                unified_has_eef=False,
+                is_eef=False,
+                finch_config_name="joint",
+            )
+            _require_public_v1_joint_only(spec)
+            spec.unified_has_eef = spec.is_eef = True
+            with self.assertRaisesRegex(NotImplementedError, "joint-control"):
+                _require_public_v1_joint_only(spec)
+        np.testing.assert_array_equal(
+            _active_indices_mask(16, 40, None, label="action"), np.r_[np.ones(16), np.zeros(24)]
+        )
+
     def test_payload_contract(self):
         state = np.arange(8, dtype=np.float32)
         observation = LiberoObservation.from_payload(
