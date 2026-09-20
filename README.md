@@ -17,13 +17,13 @@ Foundation Model with World-Model-Guided Test-Time Computation**.
   See the [LIBERO guide](configs/libero/README.md) for checkpoints, setup,
   and evaluation results.
 
+- **[2026.08.19]** 📢 We plan to progressively release components of the
+  high-level policy. Please stay tuned for updates.
+
 - **[2026.07.27]** 🚀 We release the **τ₀-VLA** model
   [Paper](https://arxiv.org/abs/2608.16885),
   [Project Website](https://tau0-vla.github.io/), and
   [Hugging Face](https://huggingface.co/sii-research/tau-0-vla).
-
-- **[2026.08.19]** 📢 We plan to progressively release components of the
-  high-level policy. Please stay tuned for updates.
 
 ## Overview
 
