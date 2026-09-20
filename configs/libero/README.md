@@ -1,4 +1,8 @@
-# LIBERO post-training
+# LIBERO post-training and evaluation
+
+Community contribution by [jian-77](https://github.com/jian-77) and liuyi,
+with validation and integration fixes by [jrryzh](https://github.com/jrryzh)
+in [PR #4](https://github.com/sii-research/tau-0-vla/pull/4).
 
 `train.yaml` fine-tunes the pretrained Tau0VLA checkpoint on LIBERO while
 preserving the checkpoint's unified 40D state/action interface. It selects the
@@ -79,17 +83,183 @@ Task: {instruction}
 older exports. The eight state values are always interpreted as six EEF values
 followed by two gripper values.
 
-Serve the resulting checkpoint with the simulator-only EEF server:
+## Checkpoint availability and export
 
-```bash
-python -m deploy.libero_server --model outputs/tau0_vla_libero_eef_ft_40_align
+The evaluated model is the **60,000-step LIBERO fine-tune**, not the public
+`sii-research/tau-0-vla` base checkpoint. Obtain a complete export from the
+[contributor / PR #4](https://github.com/sii-research/tau-0-vla/pull/4), or
+post-train and export your own checkpoint using the recipe above. A verified
+public download is not yet available: the model ID mentioned in the supplied
+model card, `sii-research/tau-0-vla-libero`, returned HTTP 401 to an anonymous
+Hub API request on 2026-09-20. No working public download command is claimed here.
+
+The validation used a self-contained `hf-checkpoint-60000` directory with:
+
+```text
+hf-checkpoint-60000/
+├── model.safetensors
+├── config.json
+├── run_spec.json
+├── policy_manifest.json
+├── processor_config.json
+├── tokenizer.json
+├── tokenizer_config.json
+├── chat_template.jinja
+└── finch_data_spec/libero-eef-robot-prompt-ft/
+    ├── spec.json
+    ├── components.json
+    ├── field_descriptions.json
+    └── norm_stats.json
 ```
 
-The server binds to localhost and exposes `POST /act_libero`, `POST
-/reset_episode`, and `GET /health`. Requests to `/act_libero` are pickled
-dictionaries using the keys documented by `python -m deploy.libero_server
---help`.
+For this export, `model.safetensors` has SHA-256
+`e03870720cbddbd0f3be44ee929a5d23efb9bf9532f0ac1c1bf676224aacc8ec`.
+The original `checkpoint-60000` had broken Data Spec symlinks; its weights
+alone were insufficient for deployment. Preserve all artifacts above and
+resolve symlinks when making a portable export. Keep the saved normalization,
+transforms, prompt, and camera labels together with their weights. This
+inference export does not contain optimizer or training-resume state.
 
-The server returns the action horizon recorded by the fine-tuned checkpoint
-(10 actions with the default config). A LIBERO evaluator may execute only the
-first `replan_steps` actions and then request a fresh chunk.
+## Separate model and simulation environments
+
+Use the repository's [installation instructions](../../README.md#installation)
+for the model server and install its serving extras there. The validation
+server used Python 3.12.3, PyTorch 2.7.1+cu128, Transformers 5.5.4,
+NumPy 2.3.5, and an RTX 4090. Run commands from the repository root:
+
+```bash
+# In the model environment, after scripts/setup.sh:
+pip install -e '.[serve]'
+python -m deploy.libero_server \
+  --model /path/to/hf-checkpoint-60000 \
+  --host 127.0.0.1 --port 8000 \
+  --seed 7 --infer-mode eager --warmup-steps 1
+```
+
+`eager` is the mode used for the validation below. `optim` remains the server
+default; it enables the existing optimized inference path and should be
+validated separately when comparing results.
+
+The client uses a separate Python 3.10 environment with LIBERO, robosuite
+1.4.0, MuJoCo 3.2.3, and NumPy 1.24.4. It does not import the model or LeRobot.
+A minimal simulation setup is:
+
+```bash
+conda create -n tau0-libero-sim python=3.10 -y
+conda activate tau0-libero-sim
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+pip install numpy==1.24.4 robosuite==1.4.0 mujoco==3.2.3 bddl==1.0.1 \
+  gym==0.25.2 opencv-python==4.6.0.66 easydict==1.9 cloudpickle==2.1.0 \
+  requests==2.34.2 tyro==1.0.16 imageio==2.37.4 imageio-ffmpeg==0.6.0 \
+  pillow==12.3.0 pyyaml==6.0.3 tqdm==4.70.0
+
+git clone https://github.com/Lifelong-Robot-Learning/LIBERO.git /path/to/LIBERO
+git -C /path/to/LIBERO checkout 8f1084e3132a39270c3a13ebe37270a43ece2a01
+pip install --no-deps -e /path/to/LIBERO
+export PYTHONPATH=/path/to/LIBERO:${PYTHONPATH:-}
+export MUJOCO_GL=egl
+# The official LIBERO initial-state files contain NumPy arrays, not just tensors.
+# Limit this setting to the simulator with trusted official benchmark assets.
+export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+python -c 'from libero.libero import benchmark; print(benchmark.get_benchmark_dict().keys())'
+```
+
+On first import, LIBERO asks where to store its paths; accept the defaults or
+configure `LIBERO_CONFIG_PATH/config.yaml` for your checkout. Evaluation needs
+the repository's BDDL files, assets, and initial-state files; demonstration
+training datasets are not needed for these rollouts. Follow the
+[upstream setup guide](https://github.com/Lifelong-Robot-Learning/LIBERO#installtion)
+for benchmark assets. On headless Linux, install the system OpenGL/EGL loader
+libraries (Ubuntu: `libgl1 libglx0 libglvnd0 libegl1 libopengl0`) and expose the
+NVIDIA EGL driver. `libGL.so.1` or EGL import errors indicate a rendering
+setup problem before any model evaluation.
+
+## Evaluation commands and protocol
+
+In the simulation environment, return to the Tau0VLA repository root. For
+all 40 tasks, first run initial state 0 once per task:
+
+```bash
+for suite in libero_spatial libero_object libero_goal libero_10; do
+  python -m deploy.libero.main \
+    --args.host 127.0.0.1 --args.port 8000 \
+    --args.task-suite-name "$suite" \
+    --args.seed 7 --args.replan-steps 8 \
+    --args.episode-start 0 --args.num-trials-per-task 1 \
+    --args.video-out-path "outputs/libero_eval/smoke/$suite" || exit 1
+done
+```
+
+After confirming there are no infrastructure or contract errors, add four
+**different initial states** per task, retaining the first pass:
+
+```bash
+for suite in libero_spatial libero_object libero_goal libero_10; do
+  python -m deploy.libero.main \
+    --args.host 127.0.0.1 --args.port 8000 \
+    --args.task-suite-name "$suite" \
+    --args.seed 7 --args.replan-steps 8 \
+    --args.episode-start 1 --args.num-trials-per-task 4 \
+    --args.video-out-path "outputs/libero_eval/remaining/$suite" || exit 1
+done
+```
+
+The two passes cover initial-state indices 0–4, totaling 200 episodes. To run
+five trials in one pass instead, use `--args.episode-start 0
+--args.num-trials-per-task 5` with a fresh output directory. The CLI uses the
+`--args.` prefix shown above; `python -m deploy.libero.main --help` lists all
+options. The author-reported evaluation uses 50 trials per task (2,000 total).
+
+| Display name | CLI suite | Tasks | Maximum action steps |
+| --- | --- | ---: | ---: |
+| Spatial | `libero_spatial` | 10 | 220 |
+| Object | `libero_object` | 10 | 280 |
+| Goal | `libero_goal` | 10 | 300 |
+| Long | `libero_10` | 10 | 520 |
+
+`libero_90` is also supported (400 steps), but is excluded from the four-suite
+average. All runs use 10 settling steps, 256×256 simulator renders, a 180°
+rotation for both cameras, and PIL bilinear resizing to 224×224. The checkpoint
+predicts 10 actions; the client executes 8 before replanning. Native gripper
+commands are passed through without an extra sign flip. The simulator and
+policy RNGs are reset to seed 7 at each episode, making the two-pass protocol
+independent of prior episodes. This seeded protocol need not match historical
+runs that did not seed the model server. Use one client per server process;
+concurrent clients would share its policy RNG.
+
+Each output directory contains:
+
+- `run.json`: arguments, client code revision/hash, and server/weight metadata;
+- `episodes.jsonl`: task, initial-state index, success, exception, step count,
+  and video filename for every attempted episode;
+- `results.json`: running per-task counts and exception totals;
+- `results.txt`: final aggregate success rate after normal completion;
+- one MP4 per episode with captured frames, including unsuccessful rollouts.
+
+Existing episode records are protected from overwrite. Setup/RPC/action/video
+errors stop the run with a nonzero exit code; inspect the log and partial
+records rather than reporting an incomplete run as a benchmark result.
+
+## Results and limitations
+
+**Author-reported**, 50 rollouts per task; historical rollout logs were not
+available for independent verification:
+
+| Spatial | Goal | Object | Long (`libero_10`) | Average |
+| ---: | ---: | ---: | ---: | ---: |
+| 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
+
+**Independent coarse validation (2026-09-20)**, five initial states per task:
+
+| Suite | Successes / episodes | Success rate | Exceptions |
+| --- | ---: | ---: | ---: |
+| Spatial | 48/50 | 96.0% | 0 |
+| Object | 50/50 | 100.0% | 0 |
+| Goal | 49/50 | 98.0% | 0 |
+| Long (`libero_10`) | 46/50 | 92.0% | 0 |
+| **Overall** | **193/200** | **96.5%** | **0** |
+
+See the [validation report](validation/2026-09-20.md) for per-task records,
+code and checkpoint identities, and remaining limitations. Its prespecified acceptance threshold is at least 90%
+overall and 85% in every suite, with no systematic exceptions. Five trials per
+task are a coarse integration check, not a precise reproduction of 97.35%.

@@ -13,6 +13,11 @@ Foundation Model with World-Model-Guided Test-Time Computation**.
 
 ## News
 
+- **[2026.09.20]** Community-contributed **LIBERO post-training and simulation evaluation**,
+  thanks to [jian-77](https://github.com/jian-77) and liuyi. See the
+  [LIBERO guide](configs/libero/README.md) for checkpoint availability, setup,
+  and separately labeled author-reported and validation results.
+
 - **[2026.07.27]** 🚀 We release the **τ₀-VLA** model
   [Paper](https://tau0-vla.github.io/tau0-vla.pdf),
   [Project Website](https://tau0-vla.github.io/), and
@@ -81,49 +86,23 @@ python deploy/openloop.py --ckpt outputs/<run_name> --no-plot
 
 ### LIBERO simulation evaluation
 
-The model is initialized from the released pretrained checkpoint and
-post-trained on LIBERO. The reported checkpoint is evaluated with 50 rollouts
-per task; results are success rates (%):
+The community adaptation fine-tunes the released base model on LIBERO. The
+**authors report** the following success rates from 50 rollouts per task:
 
-| Spatial | Goal | Object | Long | Average |
+| Spatial | Goal | Object | Long (`libero_10`) | Average |
 | ---: | ---: | ---: | ---: | ---: |
 | 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
 
-Install the optional evaluation dependencies and the official
-[LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO) package first:
+Historical rollout logs were not available for independent verification.
+**Independent coarse validation:** 193/200 successes (96.5%), five initial
+states per task, with no evaluation exceptions. See the
+[validation report](configs/libero/validation/2026-09-20.md) for per-suite
+results and limitations; this does not establish an exact reproduction of 97.35%.
 
-```bash
-pip install -e ".[serve,libero]"
-pip install -e /path/to/LIBERO
-```
-
-LIBERO uses its dedicated simulator-only EEF server and client. From the
-repository root, start the deployment server in one terminal:
-
-```bash
-python -m deploy.libero_server \
-    --model /path/to/libero-checkpoint \
-    --host 127.0.0.1 \
-    --port 8000
-```
-
-
-In another terminal, start the evaluation client:
-
-```bash
-python -m deploy.libero.main \
-    --args.host 127.0.0.1 \
-    --args.port 8000 \
-    --args.task-suite-name libero_object \
-    --args.num-trials-per-task 50 \
-    --args.video-out-path outputs/libero_eval/libero_object
-```
-
-`--task-suite-name` supports `libero_spatial`, `libero_object`,
-`libero_goal`, `libero_10`, and `libero_90`. The client saves rollout videos
-and an aggregate success-rate summary in `results.txt` under
-`--video-out-path`. See [`configs/libero/`](configs/libero/README.md) for the
-training route, state/action layout, and checkpoint details.
+See the [LIBERO guide](configs/libero/README.md) for the complete checkpoint
+contract, separate model/simulator environments, and commands for all four
+suites. A publicly downloadable LIBERO fine-tuned checkpoint has **not yet
+been verified**; the public base model alone is not the evaluated checkpoint.
 
 See [`deploy/`](deploy/README.md) for the payload and action-order contracts.
 
