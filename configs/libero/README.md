@@ -117,8 +117,8 @@ include the same artifacts and resolve symlinks to make the directory portable.
 ## Separate model and simulation environments
 
 Use the repository's [installation instructions](../../README.md#installation)
-for the model server and install its serving extras there. The validation
-server used Python 3.12.3, PyTorch 2.7.1+cu128, Transformers 5.5.4,
+for the model server and install its serving extras there. An example server
+environment uses Python 3.12.3, PyTorch 2.7.1+cu128, Transformers 5.5.4,
 NumPy 2.3.5, and an RTX 4090. Run commands from the repository root:
 
 ```bash
@@ -130,7 +130,7 @@ python -m deploy.libero_server \
   --seed 7 --infer-mode eager --warmup-steps 1
 ```
 
-The validation below uses `eager`. The server also supports `optim`, its
+The commands here use `eager`. The server also supports `optim`, its
 default optimized inference mode.
 
 The client uses a separate Python 3.10 environment with LIBERO, robosuite
@@ -169,8 +169,8 @@ setup problem before any model evaluation.
 
 ## Evaluation commands and protocol
 
-In the simulation environment, return to the Tau0VLA repository root. For
-all 40 tasks, first run initial state 0 once per task:
+In the simulation environment, return to the Tau0VLA repository root and
+evaluate all four suites with 50 rollouts per task:
 
 ```bash
 for suite in libero_spatial libero_object libero_goal libero_10; do
@@ -178,30 +178,14 @@ for suite in libero_spatial libero_object libero_goal libero_10; do
     --args.host 127.0.0.1 --args.port 8000 \
     --args.task-suite-name "$suite" \
     --args.seed 7 --args.replan-steps 8 \
-    --args.episode-start 0 --args.num-trials-per-task 1 \
-    --args.video-out-path "outputs/libero_eval/smoke/$suite" || exit 1
+    --args.episode-start 0 --args.num-trials-per-task 50 \
+    --args.video-out-path "outputs/libero_eval/$suite" || exit 1
 done
 ```
 
-After confirming there are no infrastructure or contract errors, add four
-**different initial states** per task, retaining the first pass:
-
-```bash
-for suite in libero_spatial libero_object libero_goal libero_10; do
-  python -m deploy.libero.main \
-    --args.host 127.0.0.1 --args.port 8000 \
-    --args.task-suite-name "$suite" \
-    --args.seed 7 --args.replan-steps 8 \
-    --args.episode-start 1 --args.num-trials-per-task 4 \
-    --args.video-out-path "outputs/libero_eval/remaining/$suite" || exit 1
-done
-```
-
-The two passes cover initial-state indices 0–4, totaling 200 episodes. To run
-five trials in one pass instead, use `--args.episode-start 0
---args.num-trials-per-task 5` with a fresh output directory. The CLI uses the
+The four suites contain 40 tasks, totaling 2,000 episodes. The CLI uses the
 `--args.` prefix shown above; `python -m deploy.libero.main --help` lists all
-options. The reported 50-trial evaluation covers 2,000 episodes in total.
+options. `--args.episode-start` selects the first initial-state index.
 
 | Display name | CLI suite | Tasks | Maximum action steps |
 | --- | --- | ---: | ---: |
@@ -215,8 +199,8 @@ average. All runs use 10 settling steps, 256×256 simulator renders, a 180°
 rotation for both cameras, and PIL bilinear resizing to 224×224. The checkpoint
 predicts 10 actions; the client executes 8 before replanning. Native gripper
 commands are passed through without an extra sign flip. The simulator and
-policy RNGs are reset to seed 7 at each episode, making the two-pass protocol
-independent of prior episodes. Use one client per server process;
+policy RNGs are reset to seed 7 at each episode, independently of prior
+episodes. Use one client per server process;
 concurrent clients would share its policy RNG.
 
 Each output directory contains:
@@ -234,21 +218,8 @@ records available for inspection.
 
 ## Evaluation results
 
-**Reported evaluation**, 50 rollouts per task:
+Success rates (%) over 50 rollouts per task:
 
 | Spatial | Goal | Object | Long (`libero_10`) | Average |
 | ---: | ---: | ---: | ---: | ---: |
 | 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
-
-**Validation run (2026-09-20)**, five initial states per task:
-
-| Suite | Successes / episodes | Success rate | Exceptions |
-| --- | ---: | ---: | ---: |
-| Spatial | 48/50 | 96.0% | 0 |
-| Object | 50/50 | 100.0% | 0 |
-| Goal | 49/50 | 98.0% | 0 |
-| Long (`libero_10`) | 46/50 | 92.0% | 0 |
-| **Overall** | **193/200** | **96.5%** | **0** |
-
-See the [validation report](validation/2026-09-20.md) for per-task records,
-the evaluation protocol, and code and checkpoint versions.

@@ -97,19 +97,8 @@ python deploy/openloop.py --ckpt outputs/<run_name> --no-plot
 The LIBERO checkpoint fine-tunes the pretrained low-level policy for
 end-effector control across Spatial, Goal, Object, and Long tasks.
 
-Reported success rates (%), with 50 rollouts per task:
-
-| Spatial | Goal | Object | Long (`libero_10`) | Average |
-| ---: | ---: | ---: | ---: | ---: |
-| 97.40 | 98.20 | 98.80 | 95.00 | 97.35 |
-
-A 200-episode validation run with five initial states per task achieved
-**193/200 successes (96.5%)**. The
-[validation report](configs/libero/validation/2026-09-20.md) includes the
-protocol, per-suite results, and per-task records.
-
 See the [LIBERO guide](configs/libero/README.md) for checkpoint downloads,
-model and simulator environments, and evaluation commands for all four suites.
+model and simulator environments, evaluation commands, and benchmark results.
 
 See [`deploy/`](deploy/README.md) for the payload and action-order contracts.
 
